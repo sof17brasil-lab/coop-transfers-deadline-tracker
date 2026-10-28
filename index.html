@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Co-op Transfers Deadline Tracker - Local Law 58 Prototype</title>
+<style>
+  :root {
+    --green: #c6efce; --green-text: #006100;
+    --yellow: #ffeb9c; --yellow-text: #9c5700;
+    --red: #ffc7ce; --red-text: #9c0006;
+    --navy: #1f4e79; --bg: #f7f9fc;
+    --header-bg: #0f2c4c;
+    --accent: #3d7ea6;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; margin: 0; background: var(--bg); color: #222; }
+  header { background: linear-gradient(135deg, var(--header-bg) 0%, #1a4a73 100%); color: white; padding: 2rem 2.5rem 1.75rem; border-bottom: 3px solid var(--accent); }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.75rem; font-weight: 500; letter-spacing: -0.015em; font-family: Georgia, 'Times New Roman', serif; }
+  header p { margin: 0; opacity: 0.8; font-size: 0.92rem; font-weight: 400; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .card { background: white; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card h3 { margin: 0 0 0.25rem; font-size: 0.85rem; color: #666; text-transform: uppercase; letter-spacing: 0.03em; }
+  .card .num { font-size: 1.8rem; font-weight: 700; color: var(--navy); }
+  .card.red .num { color: #c0392b; }
+  .controls { margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  select, input { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  th { background: var(--navy); color: white; text-align: left; padding: 0.6rem 0.5rem; font-size: 0.8rem; position: sticky; top: 0; }
+  td { padding: 0.5rem; border-bottom: 1px solid #eee; font-size: 0.85rem; }
+  tr.ok { background: var(--green); }
+  tr.watch { background: var(--yellow); }
+  tr.urgent { background: #ffe0b2; }
+  tr.overdue { background: var(--red); font-weight: 500; }
+  .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-complete { background: #d4edda; color: #155724; }
+  .badge-incomplete { background: #f8d7da; color: #721c24; }
+  footer { margin-top: 2rem; font-size: 0.8rem; color: #666; text-align: center; }
+  .disclaimer { background: #f0f4f8; border-left: 4px solid var(--accent); padding: 0.85rem 1.1rem; margin-bottom: 1.25rem; border-radius: 4px; font-size: 0.85rem; color: #333; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Co-op Transfers Deadline Tracker</h1>
+  <p>Local Law 58 of 2026 (Int. 1120-B) | NYC Cooperative Application Timeline Law | Fictional data for demonstration only</p>
+</header>
+<div class="container">
+  <div class="explanation" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:1rem 1.25rem; margin-bottom:1.25rem; font-size:0.95rem; line-height:1.5;">
+    I built this tracker after reading Local Law 58 of 2026, which requires managing agents to acknowledge co-op transfer applications within 15 days and issue a decision within 45 days. It keeps every open file sorted by days remaining, flags incomplete packages, and shows fine exposure so deadlines do not get missed as volume grows.
+  </div>
+
+  <div class="disclaimer">
+    <strong>Disclaimer:</strong> Fictional buildings, units, and applicants only. Deadlines follow the 15-day acknowledgment and 45-day decision clocks under NYC Local Law 58. Fine exposure is illustrative ($1,000 per overdue file). Verify against official Administrative Code text.
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="controls">
+    <label>Filter priority:
+      <select id="filterPriority" onchange="render()">
+        <option value="all">All</option>
+        <option value="OVERDUE">Overdue</option>
+        <option value="URGENT">Urgent (≤5 days)</option>
+        <option value="WATCH">Watch (6–14 days)</option>
+        <option value="OK">On Track</option>
+      </select>
+    </label>
+    <label>Search: <input type="text" id="search" oninput="render()" placeholder="Building, applicant, ID..."></label>
+    <span id="asof">As of: 2026-10-27</span>
+  </div>
+
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>File ID</th><th>Building</th><th>Unit</th><th>Applicant</th>
+          <th>Received</th><th>Clock</th><th>Deadline</th><th>Days Left</th>
+          <th>Priority</th><th>Completeness</th><th>Missing</th><th>Owner</th><th>Fine</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    Local Law 58: 15 days to acknowledge (email + registered mail); deemed complete if missed. 45 days to decide once complete. One 14-day extension. Summer recess can toll. Fines $1k / $1.5k / $2k. Managing agents are in scope.
+  </footer>
+</div>
+
+<script>
+const TODAY = new Date(2026, 9, 27);
+const buildings = ["Riverside Court","Parkview Cooperative","Hudson Heights Co-op","Chelsea Gardens","Brooklyn Heights Coop","Astoria Arms","Upper West Residence","Queens Plaza Co-op","East Village Cooperative","Williamsburg Commons"];
+const applicants = ["Alex Chen","Jordan Patel","Taylor Rivera","Morgan Kim","Casey Nguyen","Riley Santos","Avery Brooks","Quinn Alvarez","Drew Patel","Sam Okonkwo","Jamie Walsh","Cameron Diaz","Reese Liu","Skyler Ahmed","Parker Singh"];
+const owners = ["Sofia M.","Ops Team A","Offshore AM","Priya K.","Transfer Desk"];
+const missingOpts = ["","Reference letters (2 missing)","Financials incomplete","Missing signatures on page 4","Wrong date on application","Board interview form unsigned","Tax returns outdated","Employer reference missing"];
+function rand(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+function randInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
+function generateData() {
+  const data = [];
+  for (let i = 1; i <= 28; i++) {
+    const daysAgo = randInt(1, 55);
+    const received = new Date(TODAY); received.setDate(received.getDate() - daysAgo);
+    const is15 = Math.random() < 0.35;
+    const clock = is15 ? "15-day" : "45-day";
+    const limit = is15 ? 15 : 45;
+    const extension = !is15 && Math.random() < 0.18;
+    const deadline = new Date(received); deadline.setDate(deadline.getDate() + limit + (extension ? 14 : 0));
+    const complete = Math.random() > 0.35;
+    data.push({
+      id: `TR-2026-${String(i).padStart(3,'0')}`,
+      building: rand(buildings),
+      unit: `${randInt(1,20)}${String.fromCharCode(65+randInt(0,5))}${randInt(1,15)}`,
+      applicant: rand(applicants),
+      received: received.toISOString().slice(0,10),
+      clock,
+      deadline: deadline.toISOString().slice(0,10),
+      completeness: complete ? "Complete" : "Incomplete",
+      missing: complete ? "" : rand(missingOpts.slice(1)),
+      owner: rand(owners),
+      extension: extension ? "Yes" : "No"
+    });
+  }
+  return data;
+}
+const DATA = generateData();
+function daysLeft(deadlineStr) {
+  const d = new Date(deadlineStr);
+  return Math.round((d - TODAY) / 86400000);
+}
+function priority(days) {
+  if (days < 0) return "OVERDUE";
+  if (days <= 5) return "URGENT";
+  if (days <= 14) return "WATCH";
+  return "OK";
+}
+function rowClass(p) {
+  if (p === "OVERDUE") return "overdue";
+  if (p === "URGENT") return "urgent";
+  if (p === "WATCH") return "watch";
+  return "ok";
+}
+function render() {
+  const filter = document.getElementById('filterPriority').value;
+  const q = document.getElementById('search').value.toLowerCase();
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let overdue = 0, urgentWatch = 0, ok = 0, incomplete = 0, fine = 0;
+  const rows = [];
+  DATA.forEach(r => {
+    const days = daysLeft(r.deadline);
+    const p = priority(days);
+    if (days < 0) { overdue++; fine += 1000; }
+    else if (days <= 14) urgentWatch++;
+    else ok++;
+    if (r.completeness === "Incomplete") incomplete++;
+    const text = `${r.id} ${r.building} ${r.applicant} ${r.unit}`.toLowerCase();
+    if ((filter === "all" || filter === p) && text.includes(q)) {
+      rows.push({...r, days, p});
+    }
+  });
+  rows.sort((a,b) => a.days - b.days);
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.className = rowClass(r.p);
+    tr.innerHTML = `
+      <td><strong>${r.id}</strong></td>
+      <td>${r.building}</td>
+      <td>${r.unit}</td>
+      <td>${r.applicant}</td>
+      <td>${r.received}</td>
+      <td>${r.clock}${r.extension==="Yes"?" +ext":""}</td>
+      <td>${r.deadline}</td>
+      <td>${r.days}</td>
+      <td>${r.p}</td>
+      <td><span class="badge ${r.completeness==="Complete"?"badge-complete":"badge-incomplete"}">${r.completeness}</span></td>
+      <td>${r.missing || "-"}</td>
+      <td>${r.owner}</td>
+      <td>${r.days < 0 ? "$1,000" : "-"}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('summary').innerHTML = `
+    <div class="card"><h3>Open Files</h3><div class="num">${DATA.length}</div></div>
+    <div class="card red"><h3>Overdue</h3><div class="num">${overdue}</div></div>
+    <div class="card"><h3>Urgent / Watch</h3><div class="num">${urgentWatch}</div></div>
+    <div class="card"><h3>On Track</h3><div class="num">${ok}</div></div>
+    <div class="card"><h3>Incomplete</h3><div class="num">${incomplete}</div></div>
+    <div class="card red"><h3>Fine Exposure</h3><div class="num">$${fine.toLocaleString()}</div></div>
+  `;
+}
+render();
+</script>
+</body>
+</html>
