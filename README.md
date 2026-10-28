@@ -12,11 +12,6 @@ A simple operational view that keeps every open transfer file sorted by days rem
 
 Local Law 58 requires managing agents to acknowledge applications within 15 days (email + registered mail) and issue a decision within 45 days. Missing either deadline can result in HPD fines. This tracker makes the clocks visible and prioritizes work by urgency.
 
-## Live demo
-
-Once GitHub Pages is enabled (Settings → Pages → Deploy from branch → main / root), the tracker will be available at:
-https://sof17brasil-lab.github.io/coop-transfers-deadline-tracker/
-
 ## Disclaimer
 
 Fictional data only. Always verify deadlines and processes against the official NYC Administrative Code text.
